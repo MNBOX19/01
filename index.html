@@ -15,7 +15,7 @@
     <style>
         :root {
             --bg-deep: #000000;
-            --main-color: #FF6600; 
+            --main-color: #FF6600; /* Laranja Premium corporativo */
             --font-xs: 1.8vh; --font-sm: 2.2vh; --font-md: 3vh; --font-lg: 5vh;
         }
 
@@ -43,7 +43,7 @@
         .focused i, .focused span, .focused div { color: #000 !important; }
         
         #vid-box.focused { border: 4px solid var(--main-color) !important; background: transparent !important; }
-        #vid-box.fs, #vid-box.fs.focused { border: none !important; width: 100% !important; height: 100% !important; z-index: 9999 !important; position: fixed !important; top: 0 !important; left: 0 !important; background: transparent !important; transform: none !important; }
+        #vid-box.fs, #vid-box.fs.focused { border: none !important; width: 100% !important; height: 100% !important; z-index: 9999 !important; position: fixed !important; top: 0 !important; left: 0 !important; background: #000 !important; transform: none !important; }
 
         .login-box { width: 450px; max-width: 90%; padding: 40px; background: #0a0a0a; border: 2px solid var(--main-color); border-radius: 12px; text-align: center; }
         .logo-txt { font-size: 4.5vh; font-weight: 900; margin-bottom: 2.5vh; }
@@ -78,7 +78,7 @@
         #content-layer { display: flex; width: 100%; height: 100%; background: #000; overflow: hidden; }
         .col-cat { width: 25%; background: #08080a; display: flex; flex-direction: column; border-right: 2px solid #1a1a1a; height: 100%; overflow: hidden; }
         .col-list { width: 35%; background: #101014; display: flex; flex-direction: column; border-right: 2px solid #1a1a1a; height: 100%; overflow: hidden; }
-        .col-play { flex: 1; display: flex; flex-direction: column; position: relative; background: transparent; height: 100%; overflow: hidden; }
+        .col-play { flex: 1; display: flex; flex-direction: column; position: relative; background: #000; height: 100%; overflow: hidden; }
 
         .cat-head { padding: 15px; background: #15151a; color: var(--main-color); border-bottom: 2px solid #222; text-align: center; font-size: var(--font-md); font-weight: 900; flex-shrink: 0; }
         .cat-top-row { display: flex; align-items: center; width: 100%; }
@@ -97,13 +97,12 @@
         .fav-icon { float: right; color: var(--main-color); }
 
         .vid-box { 
-            width: 100%; height: 50vh; background: transparent; position: relative; border-bottom: 2px solid #222; overflow: hidden; flex-shrink: 0;
+            width: 100%; height: 50vh; background: #000; position: relative; border-bottom: 2px solid #222; overflow: hidden; flex-shrink: 0;
             touch-action: manipulation;
         }
         
-        /* OTIMIZAÇÃO: Fundo transparente para evitar piscada preta abrupta */
-        #player-container { width:100%; height:100%; background: transparent; }
-        video { width: 100%; height: 100%; object-fit: fill; background: transparent; z-index: 1; }
+        #player-container { width:100%; height:100%; background:#000; }
+        video { width: 100%; height: 100%; object-fit: fill; background: #000; z-index: 1; }
 
         .css-spinner {
             width: 7vh; height: 7vh;
@@ -211,7 +210,7 @@
                 <div id="player-container">
                     <video id="player" playsinline webkit-playsinline></video>
                 </div>
-
+                
                 <div id="pause-layer"><i class="fas fa-pause" style="font-size: 10vh; color: rgba(255, 255, 255, 0.9); text-shadow: 0 0 20px #000;"></i></div>
             </div>
             
@@ -265,6 +264,9 @@
 
             init: function() { this.bindVideo(); },
 
+            freezeFrame: function() {},
+            clearFreeze: function() {},
+
             bindVideo: function() {
                 this.video = document.getElementById('player'); if(!this.video) return;
                 this.video.onended = null; this.video.onerror = null; this.video.onplaying = null; this.video.onwaiting = null; this.video.onstalled = null;
@@ -276,10 +278,10 @@
                     }
                     if(App.currentMode !== 'live') PlayerEngine.hardStop(); else PlayerEngine.handleError('ended'); 
                 };
-                this.video.onerror = function(e) { PlayerEngine.handleError('error'); };
-                this.video.onstalled = function() { PlayerEngine.showBuffer(); };
+                this.video.onerror = function(e) { PlayerEngine.handleError('error: ' + (e.target.error ? e.target.error.code : 'unknown')); };
+                this.video.onstalled = function() { PlayerEngine.showBuffer('Sincronizando sinal...'); };
                 this.video.onplaying = function() { PlayerEngine.onPlaySuccess(); };
-                this.video.onwaiting = function() { PlayerEngine.showBuffer(); };
+                this.video.onwaiting = function() { PlayerEngine.showBuffer('Conectando...'); };
                 this.video.controls = false; this.video.setAttribute('playsinline', 'true');
             },
             
@@ -299,11 +301,9 @@
                 if (this.video) {
                     try { 
                         this.video.pause(); 
-                        if (!isRetry) { // OTIMIZAÇÃO: Não limpa a tela se for apenas uma reconexão! Mantém congelado.
-                            this.video.src = ""; 
-                            this.video.removeAttribute('src'); 
-                            this.video.load(); 
-                        }
+                        this.video.src = ""; 
+                        this.video.removeAttribute('src'); 
+                        this.video.load(); 
                     } catch (e) {}
                 }
                 
@@ -319,7 +319,7 @@
                 var isRetry = (this.url === url); this.destroy(isRetry);
                 this.url = url; this.stallCount = 0; this.retryCount = 0;
                 
-                this.showBuffer(); document.getElementById('pause-layer').style.display = 'none';
+                this.showBuffer('Conectando...'); document.getElementById('pause-layer').style.display = 'none';
                 if(!this.video) this.bindVideo();
                 if (!this.video) this.video = document.getElementById('player');
 
@@ -330,13 +330,14 @@
                     
                     this.connectionLostTimer = setTimeout(function() {
                         if (PlayerEngine.video && PlayerEngine.video.paused && PlayerEngine.retryCount < 3) {
-                            PlayerEngine.showBuffer(); PlayerEngine.handleError('timeout');
+                            PlayerEngine.showBuffer('Otimizando conexão...'); PlayerEngine.handleError('timeout');
                         }
                     }, 15000);
                 } catch (e) { this.handleError('exception'); }
             },
 
-            showBuffer: function() { this.isBuffering = true; },
+            /* Funções Mantidas para a lógica, mas 100% invisíveis na tela */
+            showBuffer: function(msg) { this.isBuffering = true; },
             hideBuffer: function() { this.isBuffering = false; },
             
             startMonitor: function() {
@@ -346,7 +347,7 @@
                     var currentTime = v.currentTime;
                     if(Math.abs(currentTime - PlayerEngine.lastTime) < 0.1) {
                         PlayerEngine.stallCount++;
-                        if(PlayerEngine.stallCount > 2) { PlayerEngine.showBuffer(); }
+                        if(PlayerEngine.stallCount > 2) { PlayerEngine.showBuffer('Sincronizando sinal...'); }
                         if(PlayerEngine.stallCount > 10) { PlayerEngine.stallCount = 0; PlayerEngine.handleError('stall timeout'); }
                     } else { 
                         PlayerEngine.stallCount = 0; PlayerEngine.lastTime = currentTime; 
@@ -363,7 +364,10 @@
 
                 if (this.retryCount < limit) {
                     this.retryCount++; 
-                    this.showBuffer();
+                    var msg = 'Otimizando conexão...';
+                    if (this.retryCount > 3) msg = 'Sincronizando...';
+                    if (this.retryCount > 6) msg = 'Aguardando rede...';
+                    this.showBuffer(msg);
                     
                     var savedUrl = this.url; this.destroy(true); 
                     var delay = 2000; 
@@ -374,7 +378,7 @@
                     if (this.retryTimeout) clearTimeout(this.retryTimeout);
                     this.retryTimeout = setTimeout(function() { if (savedUrl) PlayerEngine.play(savedUrl); PlayerEngine.retryTimeout = null; }, delay);
                 } else {
-                    this.showBuffer();
+                    this.showBuffer('Aguardando rede...');
                     this.retryCount = 0; this.destroy(false);
                 }
             },
@@ -447,7 +451,7 @@
                     var nowTime = now.getTime();
                     if (!this.lastReloadTime || nowTime - this.lastReloadTime > 120000) { 
                         this.lastReloadTime = nowTime;
-                        console.log("Watchdog Noturno");
+                        console.log("Watchdog: Executando Flush de Memória de Madrugada...");
                         window.location.reload(true); 
                         return;
                     }
